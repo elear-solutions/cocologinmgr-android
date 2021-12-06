@@ -1,0 +1,3 @@
+rootProject.name = "cocologinmgr-android"
+include ':app'
+include ':coco-login-android'

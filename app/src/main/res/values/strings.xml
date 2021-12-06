@@ -1,0 +1,4 @@
+<resources>
+  <string name="app_name">not-simple-auth-android</string>
+  <string name="authorize">Authorize !!</string>
+</resources>

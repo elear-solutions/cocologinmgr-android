@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  package="buzz.getcoco.auth.sample">
+
+  <application
+    android:icon="@mipmap/ic_launcher"
+    android:label="@string/app_name"
+    android:roundIcon="@mipmap/ic_launcher_round"
+    android:supportsRtl="false"
+    android:theme="@style/Theme.Simpleauthandroid"
+    android:allowBackup="true"
+    android:fullBackupOnly="true">
+
+    <meta-data
+      android:name="buzz.getcoco.auth.client_id"
+      android:value="dc556e0901c164b7bf43" />
+
+    <meta-data
+      android:name="buzz.getcoco.auth.redirect_uri"
+      android:value="cocodc556e0901c164b7bf43://" />
+
+    <activity
+      android:name=".MainActivity"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+
+    <activity
+      android:name="buzz.getcoco.auth.CocoRedirectActivity"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="cocodc556e0901c164b7bf43"/>
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>
