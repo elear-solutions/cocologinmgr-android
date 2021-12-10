@@ -11,6 +11,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.browser.customtabs.CustomTabsIntent;
+import com.google.gson.JsonObject;
 import net.openid.appauth.AppAuthConfiguration;
 import net.openid.appauth.AuthState;
 import net.openid.appauth.AuthorizationException;
@@ -228,14 +229,27 @@ public class LoginActivity extends AppCompatActivity {
 
   private Intent getFailureIntent(@NonNull String message) {
     return new Intent()
-        .putExtra(Constants.KEY_AUTH_STATE, (String) null)
         .putExtra(Constants.KEY_FAILURE, message);
   }
 
   private Intent getSuccessIntent() {
+    JsonObject jo = new JsonObject();
+    jo.addProperty("access_token", authState.getAccessToken());
+    jo.addProperty("refresh_token", authState.getRefreshToken());
+
+    if (null != authState.getLastTokenResponse()) {
+
+      Long expiresAt = authState.getLastTokenResponse().accessTokenExpirationTime;
+      long expiresIn = ((null == expiresAt) ? 0 : expiresAt) - System.currentTimeMillis();
+
+      expiresIn = Math.abs(expiresIn);
+
+      jo.addProperty("token_type", authState.getLastTokenResponse().tokenType);
+      jo.addProperty("expires_in", expiresIn);
+    }
+
     return new Intent()
-        .putExtra(Constants.KEY_AUTH_STATE, authState.jsonSerializeString())
-        .putExtra(Constants.KEY_FAILURE, (String) null);
+        .putExtra(Constants.KEY_AUTH_STATE, jo.toString());
   }
 
   public static Intent createLoginIntent(Context context, String authEndpoint, String tokenEndpoint, String scope) {
