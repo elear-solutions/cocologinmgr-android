@@ -1,6 +1,7 @@
 package buzz.getcoco.auth;
 
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -235,5 +236,15 @@ public class LoginActivity extends AppCompatActivity {
     return new Intent()
         .putExtra(Constants.KEY_AUTH_STATE, authState.jsonSerializeString())
         .putExtra(Constants.KEY_FAILURE, (String) null);
+  }
+
+  public static Intent createLoginIntent(Context context, String authEndpoint, String tokenEndpoint, String scope) {
+    Intent intent = new Intent(context, LoginActivity.class);
+
+    intent.putExtra(Constants.AUTH_ENDPOINT, authEndpoint)
+        .putExtra(Constants.TOKEN_ENDPOINT, tokenEndpoint)
+        .putExtra(Constants.SCOPE, scope);
+
+    return intent;
   }
 }
