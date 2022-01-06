@@ -52,11 +52,10 @@ public class MainActivity extends AppCompatActivity {
     Objects.requireNonNull(button);
 
     button.setOnClickListener(v -> {
-      Intent intent = new Intent(this, LoginActivity.class);
-
-      intent.putExtra(Constants.AUTH_ENDPOINT, "https://api.staging.getcoco.buzz/oauth/authorize")
-          .putExtra(Constants.TOKEN_ENDPOINT, "https://api.staging.getcoco.buzz/oauth/token")
-          .putExtra(Constants.SCOPE, "network.mgmt");
+      Intent intent = LoginActivity.createLoginIntent(this,
+          "https://api.dev.getcoco.buzz/oauth/authorize",
+          "https://api.dev.getcoco.buzz/oauth/token",
+          "network.mgmt");
 
       resultLauncher.launch(intent);
     });

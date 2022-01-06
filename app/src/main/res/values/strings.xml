@@ -1,4 +1,4 @@
 <resources>
-  <string name="app_name">not-simple-auth-android</string>
+  <string name="app_name">coco-samples-login</string>
   <string name="authorize">Authorize !!</string>
 </resources>

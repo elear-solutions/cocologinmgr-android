@@ -12,6 +12,10 @@
       tools:node="replace" />
 
     <activity
+      android:name=".CocoRedirectActivity"
+      android:exported="true" />
+
+    <activity
       android:name=".LoginActivity"
       android:exported="true"
       android:launchMode="singleTask" />

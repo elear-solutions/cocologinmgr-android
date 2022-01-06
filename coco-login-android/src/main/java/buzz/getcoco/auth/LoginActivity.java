@@ -1,6 +1,7 @@
 package buzz.getcoco.auth;
 
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -10,6 +11,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.browser.customtabs.CustomTabsIntent;
+import com.google.gson.JsonObject;
 import net.openid.appauth.AppAuthConfiguration;
 import net.openid.appauth.AuthState;
 import net.openid.appauth.AuthorizationException;
@@ -20,17 +22,17 @@ import net.openid.appauth.AuthorizationServiceConfiguration;
 import net.openid.appauth.ResponseTypeValues;
 import net.openid.appauth.TokenResponse;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class LoginActivity extends AppCompatActivity {
 
   private static final String TAG = "LoginActivity";
+  private static final String KEY_AUTH_STARTED = "buzz.getcoco.auth.authStarted";
 
-  private final AtomicReference<AuthorizationRequest> authRequest = new AtomicReference<>();
-  private final AtomicReference<CustomTabsIntent> authIntent = new AtomicReference<>();
+  private AuthorizationRequest authRequest;
+  private CustomTabsIntent authIntent;
 
   private AuthorizationService authService;
-  private AuthStateManager authStateManager;
+  private AuthState authState;
 
   private boolean authStarted;
   private String authEndpoint;
@@ -41,7 +43,9 @@ public class LoginActivity extends AppCompatActivity {
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
 
-    String clientId;
+    if (null != savedInstanceState) {
+      this.authStarted = savedInstanceState.getBoolean(KEY_AUTH_STARTED);
+    }
 
     if (!authStarted) {
       Intent intent = getIntent();
@@ -55,6 +59,7 @@ public class LoginActivity extends AppCompatActivity {
         scope = intent.getStringExtra(Constants.SCOPE);
       }
 
+      String clientId;
       try {
         ApplicationInfo appInfo = this.getPackageManager()
             .getApplicationInfo(this.getPackageName(), PackageManager.GET_META_DATA);
@@ -72,25 +77,21 @@ public class LoginActivity extends AppCompatActivity {
           + ", tokenEndpoint: " + tokenEndpoint
           + ", scope: " + scope
           + ", clientId: " + clientId);
+
+
+      // initializes authService, authRequest and authIntent
+      initializeAppAuth(authEndpoint, tokenEndpoint, clientId, scope);
     } else {
       processAuthResponse();
-
-      // should remove ?
-      return;
     }
-
-    authStateManager = AuthStateManager.getInstance(this);
-
-    // initializes authService, authRequest and authIntent
-    initializeAppAuth(authEndpoint, tokenEndpoint, clientId, scope);
   }
 
   @Override
   protected void onStart() {
     super.onStart();
 
-    if (authStateManager.getCurrent().isAuthorized()) {
-      Log.d(TAG, "onStart: accessToken: " + authStateManager.getCurrent().getAccessToken());
+    if (authState.isAuthorized()) {
+      Log.d(TAG, "onStart: accessToken: " + authState.getAccessToken());
       setResult(RESULT_OK, getSuccessIntent());
       finish();
     }
@@ -117,6 +118,12 @@ public class LoginActivity extends AppCompatActivity {
     processAuthResponse();
   }
 
+  @Override
+  protected void onSaveInstanceState(@NonNull Bundle outState) {
+    super.onSaveInstanceState(outState);
+    outState.putBoolean(KEY_AUTH_STARTED, authStarted);
+  }
+
   private void authorize() {
     Intent postAuthorizationIntent = new Intent(this, LoginActivity.class);
     postAuthorizationIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -124,19 +131,13 @@ public class LoginActivity extends AppCompatActivity {
     PendingIntent pendingIntent = PendingIntent.getActivity(getApplicationContext(), 0, postAuthorizationIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
 
     Log.d(TAG, "authorize: performing authorization with pending intent: " + pendingIntent);
-    authService.performAuthorizationRequest(authRequest.get(), pendingIntent, pendingIntent, authIntent.get());
+    authService.performAuthorizationRequest(authRequest, pendingIntent, pendingIntent, authIntent);
   }
 
   private void initializeAppAuth(String authEndpoint, String tokenEndpoint,
                                  String clientId, String scope) {
     Log.d(TAG, "initializeAppAuth: Initializing");
     recreateAuthService();
-
-    /*AuthorizationServiceConfiguration config = new AuthorizationServiceConfiguration(
-        Uri.parse(authEndPoint),
-        Uri.parse(tokenEndPoint),
-        null,
-        null); */
 
     Objects.requireNonNull(authEndpoint, "Provide Auth Endpoint");
     Objects.requireNonNull(tokenEndpoint, "Provide Token Endpoint");
@@ -149,9 +150,27 @@ public class LoginActivity extends AppCompatActivity {
         null,
         null);
 
-    authStateManager.replace(new AuthState(config));
-    initializeAuthRequest(clientId, scope);
-    warmUpBrowser();
+    this.authState = new AuthState(config);
+
+    // initialize auth request
+    Log.d(TAG, "createAuthRequest: creating auth request using clientId: " + clientId);
+
+    AuthorizationRequest.Builder authRequestBuilder =
+        new AuthorizationRequest.Builder(
+            authState.getAuthorizationServiceConfiguration(),
+            clientId,
+            ResponseTypeValues.CODE,
+            null)
+            .setScope(scope);
+
+    this.authRequest = authRequestBuilder.build();
+
+    // warmup browser instance
+    Log.d(TAG, "warmUpBrowser: making browser instance for auth request");
+
+    CustomTabsIntent.Builder intentBuilder =
+        authService.createCustomTabsIntentBuilder(authRequest.toUri());
+    this.authIntent = intentBuilder.build();
   }
 
   private void recreateAuthService() {
@@ -160,39 +179,9 @@ public class LoginActivity extends AppCompatActivity {
       authService.dispose();
     }
 
-    authService = createAuthService();
-    authRequest.set(null);
-    authIntent.set(null);
-  }
-
-  private AuthorizationService createAuthService() {
-    Log.d(TAG, "createAuthService: creating Auth service");
-    AppAuthConfiguration.Builder builder = new AppAuthConfiguration.Builder();
-
-    return new AuthorizationService(this, builder.build());
-  }
-
-  private void initializeAuthRequest(String clientId, String scope) {
-    Objects.requireNonNull(clientId);
-
-    Log.d(TAG, "createAuthRequest: creating auth request using clientId: " + clientId);
-
-    AuthorizationRequest.Builder authRequestBuilder =
-        new AuthorizationRequest.Builder(
-            authStateManager.getCurrent().getAuthorizationServiceConfiguration(),
-            clientId,
-            ResponseTypeValues.CODE,
-            null)
-            .setScope(scope);
-
-    authRequest.set(authRequestBuilder.build());
-  }
-
-  private void warmUpBrowser() {
-    Log.d(TAG, "warmUpBrowser: making browser instance for auth request");
-    CustomTabsIntent.Builder intentBuilder =
-        authService.createCustomTabsIntentBuilder(authRequest.get().toUri());
-    authIntent.set(intentBuilder.build());
+    authService = new AuthorizationService(this, new AppAuthConfiguration.Builder().build());
+    this.authRequest = null;
+    this.authIntent = null;
   }
 
   private void processAuthResponse() {
@@ -201,12 +190,12 @@ public class LoginActivity extends AppCompatActivity {
 
     Log.d(TAG, "processAuthResponse: response: " + response + ", exception:" + ex);
     if (response != null || ex != null) {
-      authStateManager.updateAfterAuthorization(response, ex);
+      authState.update(response, ex);
     }
 
     if (response != null && response.authorizationCode != null) {
       // authorization code exchange is required
-      authStateManager.updateAfterAuthorization(response, ex);
+      authState.update(response, ex);
       exchangeAuthorizationCode(response);
     } else if (ex != null) {
       Log.d(TAG, "processAuthResponse: Authorization flow failed: exception: " + ex.getMessage());
@@ -227,26 +216,49 @@ public class LoginActivity extends AppCompatActivity {
   private void handleCodeExchangeResponse(TokenResponse tokenResponse, AuthorizationException authException) {
     Log.d(TAG, "handleCodeExchangeResponse: started with tokenResponse: " + tokenResponse + ", Exception: " + authException);
 
-    authStateManager.updateAfterTokenResponse(tokenResponse, authException);
-    if (!authStateManager.getCurrent().isAuthorized()) {
+    authState.update(tokenResponse, authException);
+    if (!authState.isAuthorized()) {
       Log.d(TAG, "handleCodeExchangeResponse: " + Constants.CODE_EXCHANGE_FAILED);
       setResult(RESULT_CANCELED, getFailureIntent(Constants.CODE_EXCHANGE_FAILED));
     } else {
-      Log.d(TAG, "handleCodeExchangeResponse: authState: " + authStateManager.getCurrent().jsonSerializeString());
+      Log.d(TAG, "handleCodeExchangeResponse: authState: " + authState.jsonSerializeString());
       setResult(RESULT_OK, getSuccessIntent());
     }
     finish();
   }
 
-  private Intent getFailureIntent(String message) {
+  private Intent getFailureIntent(@NonNull String message) {
     return new Intent()
-        .putExtra(Constants.KEY_AUTH_STATE, (String) null)
         .putExtra(Constants.KEY_FAILURE, message);
   }
 
   private Intent getSuccessIntent() {
+    JsonObject jo = new JsonObject();
+    jo.addProperty("access_token", authState.getAccessToken());
+    jo.addProperty("refresh_token", authState.getRefreshToken());
+
+    if (null != authState.getLastTokenResponse()) {
+
+      Long expiresAt = authState.getLastTokenResponse().accessTokenExpirationTime;
+      long expiresIn = ((null == expiresAt) ? 0 : expiresAt) - System.currentTimeMillis();
+
+      expiresIn = Math.abs(expiresIn);
+
+      jo.addProperty("token_type", authState.getLastTokenResponse().tokenType);
+      jo.addProperty("expires_in", expiresIn);
+    }
+
     return new Intent()
-        .putExtra(Constants.KEY_AUTH_STATE, authStateManager.getCurrent().jsonSerializeString())
-        .putExtra(Constants.KEY_FAILURE, (String) null);
+        .putExtra(Constants.KEY_AUTH_STATE, jo.toString());
+  }
+
+  public static Intent createLoginIntent(Context context, String authEndpoint, String tokenEndpoint, String scope) {
+    Intent intent = new Intent(context, LoginActivity.class);
+
+    intent.putExtra(Constants.AUTH_ENDPOINT, authEndpoint)
+        .putExtra(Constants.TOKEN_ENDPOINT, tokenEndpoint)
+        .putExtra(Constants.SCOPE, scope);
+
+    return intent;
   }
 }
